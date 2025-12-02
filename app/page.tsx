@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { MarketplaceBrowser } from "@/components/marketplace-browser"
+import { NetworkAlert } from "@/components/network-alert"
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
+      {/* Network Warning Banner */}
+      <NetworkAlert />
+      
       {/* Header */}
       <header className="border-b border-border sticky top-0 bg-background/95 backdrop-blur">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
