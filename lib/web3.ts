@@ -238,7 +238,14 @@ export async function requestTestFunds(): Promise<void> {
   }
 }
 
-// Switch to Hardhat network
+// Check if running locally or deployed
+export function isLocalEnvironment(): boolean {
+  if (typeof window === "undefined") return false
+  const host = window.location.hostname
+  return host === "localhost" || host === "127.0.0.1"
+}
+
+// Switch to Hardhat network (local development)
 export async function switchToHardhat(): Promise<boolean> {
   if (!window.ethereum) {
     throw new Error("MetaMask not detected")
@@ -277,6 +284,49 @@ export async function switchToHardhat(): Promise<boolean> {
       } catch (addError) {
         console.error("Failed to add Hardhat network:", addError)
         throw new Error("Failed to add Hardhat network to MetaMask")
+      }
+    }
+    throw switchError
+  }
+}
+
+// Switch to Sepolia testnet (for deployed app)
+export async function switchToSepolia(): Promise<boolean> {
+  if (!window.ethereum) {
+    throw new Error("MetaMask not detected")
+  }
+
+  const sepoliaChainId = "0xaa36a7" // 11155111 in hex
+
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: sepoliaChainId }],
+    })
+    return true
+  } catch (switchError: unknown) {
+    if ((switchError as { code?: number })?.code === 4902) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: sepoliaChainId,
+              chainName: "Sepolia Testnet",
+              nativeCurrency: {
+                name: "SepoliaETH",
+                symbol: "ETH",
+                decimals: 18,
+              },
+              rpcUrls: ["https://rpc.sepolia.org"],
+              blockExplorerUrls: ["https://sepolia.etherscan.io"],
+            },
+          ],
+        })
+        return true
+      } catch (addError) {
+        console.error("Failed to add Sepolia network:", addError)
+        throw new Error("Failed to add Sepolia network to MetaMask")
       }
     }
     throw switchError

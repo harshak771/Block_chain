@@ -2,7 +2,7 @@
 
 import { useWallet } from "@/hooks/useWallet"
 import { useTransactionHistory } from "@/hooks/useTransactionHistory"
-import { switchToHardhat } from "@/lib/web3"
+import { switchToHardhat, switchToSepolia, isLocalEnvironment } from "@/lib/web3"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -172,6 +172,19 @@ export function WalletButton() {
     }
   }
 
+  const handleSwitchToSepolia = async () => {
+    setFunding(true)
+    setFundingMessage("Switching to Sepolia...")
+    try {
+      await switchToSepolia()
+      setFundingMessage("✅ Switched to Sepolia! Refreshing...")
+      setTimeout(() => window.location.reload(), 1000)
+    } catch (err) {
+      setFundingMessage("Failed to switch to Sepolia")
+      setFunding(false)
+    }
+  }
+
   const getNetworkName = (chainId: number): string => {
     return NETWORK_NAMES[chainId] || `Network ${chainId}`
   }
@@ -238,9 +251,22 @@ export function WalletButton() {
 
           <DropdownMenuSeparator />
 
-          {/* Network Switch & Mint ETH Buttons */}
+          {/* Network Switch & ETH Buttons */}
           <div className="px-2 py-2 space-y-2">
-            {wallet.chainId !== 31337 && (
+            {/* For deployed app - use Sepolia */}
+            {!isLocalEnvironment() && wallet.chainId !== 11155111 && (
+              <Button
+                onClick={handleSwitchToSepolia}
+                disabled={funding}
+                className="w-full bg-purple-600 hover:bg-purple-700 gap-2"
+                size="sm"
+              >
+                <RefreshCw size={14} />
+                {funding ? "Switching..." : "🔗 Switch to Sepolia"}
+              </Button>
+            )}
+            {/* For local development - use Hardhat */}
+            {isLocalEnvironment() && wallet.chainId !== 31337 && (
               <Button
                 onClick={handleSwitchNetwork}
                 disabled={funding}
@@ -251,16 +277,37 @@ export function WalletButton() {
                 {funding ? "Switching..." : "🔄 Switch to Hardhat"}
               </Button>
             )}
-            <Button
-              onClick={handleMintETH}
-              disabled={funding}
-              className="w-full bg-green-600 hover:bg-green-700 gap-2"
-              size="sm"
-            >
-              <Zap size={14} />
-              {funding ? "Adding ETH..." : "⚡ Mint 100,000 ETH"}
-            </Button>
-            {wallet.chainId === 31337 && (
+            {/* Mint ETH only works locally */}
+            {isLocalEnvironment() && (
+              <Button
+                onClick={handleMintETH}
+                disabled={funding}
+                className="w-full bg-green-600 hover:bg-green-700 gap-2"
+                size="sm"
+              >
+                <Zap size={14} />
+                {funding ? "Adding ETH..." : "⚡ Mint 100,000 ETH"}
+              </Button>
+            )}
+            {/* Sepolia faucet link for deployed */}
+            {!isLocalEnvironment() && (
+              <a
+                href="https://sepoliafaucet.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  size="sm"
+                >
+                  <Zap size={14} />
+                  🚰 Get Free Sepolia ETH
+                </Button>
+              </a>
+            )}
+            {wallet.chainId === 31337 && isLocalEnvironment() && (
               <Button
                 onClick={handleGetTestETH}
                 disabled={funding}
