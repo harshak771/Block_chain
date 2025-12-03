@@ -43,26 +43,6 @@ export function NetworkAlert() {
     }
   }, [])
 
-  // Show demo mode banner on deployed sites
-  if (isDemoMode() && showDemoInfo) {
-    const demoBalance = getDemoBalance()
-    return (
-      <Alert className="mb-4 border-purple-500 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
-        <Gift className="h-4 w-4 text-purple-600" />
-        <AlertTitle className="text-purple-800 dark:text-purple-200">🎮 Demo Mode Active</AlertTitle>
-        <AlertDescription className="mt-2 text-purple-700 dark:text-purple-300">
-          <p className="mb-2">
-            You have <strong>{demoBalance.toFixed(2)} Demo ETH</strong> to test the marketplace!
-            Connect your wallet and click it to get more free Demo ETH anytime.
-          </p>
-          <p className="text-sm opacity-80">
-            Demo transactions are simulated and don&apos;t require real ETH or gas fees.
-          </p>
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
-  // Don't show anything for local development
+  // Hide demo mode banner - always return null
   return null
 }

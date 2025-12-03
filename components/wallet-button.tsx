@@ -253,26 +253,6 @@ export function WalletButton() {
 
           {/* Network Switch & ETH Buttons */}
           <div className="px-2 py-2 space-y-2">
-            {/* Demo mode - free ETH button */}
-            {isDemoMode && (
-              <>
-                <div className="bg-purple-100 dark:bg-purple-900 p-2 rounded text-xs text-center mb-2">
-                  🎮 Demo Mode Active - Free Test ETH!
-                </div>
-                <Button
-                  onClick={() => {
-                    addFreeETH(1000)
-                    setFundingMessage("✅ Added 1000 Demo ETH!")
-                    setTimeout(() => setFundingMessage(""), 2000)
-                  }}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 gap-2"
-                  size="sm"
-                >
-                  <Gift size={14} />
-                  🎁 Get 1000 Free Demo ETH
-                </Button>
-              </>
-            )}
             {/* For deployed app - use Sepolia */}
             {!isLocalEnvironment() && !isDemoMode && wallet.chainId !== 11155111 && (
               <Button
