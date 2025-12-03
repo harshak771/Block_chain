@@ -67,20 +67,29 @@ export async function connectWallet(): Promise<WalletInfo> {
 
     const address = accounts[0]
 
-    // Get balance using JSON-RPC
-    const balanceHex = (await window.ethereum.request({
-      method: "eth_getBalance",
-      params: [address, "latest"],
-    })) as string
+    // Get chain ID (usually works even with network issues)
+    let chainId = 0
+    try {
+      const chainIdHex = (await window.ethereum.request({
+        method: "eth_chainId",
+      })) as string
+      chainId = hexToDecimal(chainIdHex)
+    } catch (e) {
+      console.warn("Could not get chain ID:", e)
+    }
 
-    const balance = weiToEth(balanceHex)
-
-    // Get chain ID
-    const chainIdHex = (await window.ethereum.request({
-      method: "eth_chainId",
-    })) as string
-
-    const chainId = hexToDecimal(chainIdHex)
+    // Try to get balance, but don't fail if network has issues
+    let balance = "0.0000"
+    try {
+      const balanceHex = (await window.ethereum.request({
+        method: "eth_getBalance",
+        params: [address, "latest"],
+      })) as string
+      balance = weiToEth(balanceHex)
+    } catch (e) {
+      console.warn("Could not get balance:", e)
+      // Continue with 0 balance - demo mode will handle this
+    }
 
     console.log("[v0] Wallet connected:", { address, balance, chainId })
 
@@ -112,20 +121,24 @@ export async function getConnectedWallet(): Promise<WalletInfo | null> {
 
     const address = accounts[0]
 
-    // Get balance
-    const balanceHex = (await window.ethereum.request({
-      method: "eth_getBalance",
-      params: [address, "latest"],
-    })) as string
-
-    const balance = weiToEth(balanceHex)
-
-    // Get chain ID
+    // Get chain ID first (this usually works even if RPC has issues)
     const chainIdHex = (await window.ethereum.request({
       method: "eth_chainId",
     })) as string
-
     const chainId = hexToDecimal(chainIdHex)
+
+    // Try to get balance, but don't fail if it doesn't work
+    let balance = "0.0000"
+    try {
+      const balanceHex = (await window.ethereum.request({
+        method: "eth_getBalance",
+        params: [address, "latest"],
+      })) as string
+      balance = weiToEth(balanceHex)
+    } catch (balanceErr) {
+      console.warn("Could not fetch balance, using 0:", balanceErr)
+      // Continue with 0 balance - demo mode will override this anyway
+    }
 
     return {
       address,
@@ -134,6 +147,22 @@ export async function getConnectedWallet(): Promise<WalletInfo | null> {
     }
   } catch (error) {
     console.error("[v0] Error getting connected wallet:", error)
+    // If there's any error, still try to return basic wallet info
+    try {
+      const accounts = (await window.ethereum.request({
+        method: "eth_accounts",
+      })) as string[]
+      
+      if (accounts && accounts.length > 0) {
+        return {
+          address: accounts[0],
+          balance: "0.0000",
+          chainId: 0,
+        }
+      }
+    } catch {
+      // Give up
+    }
     return null
   }
 }
