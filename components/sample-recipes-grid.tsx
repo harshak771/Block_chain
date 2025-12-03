@@ -129,67 +129,26 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
     if (!selectedRecipe || !wallet) return
 
     setIsProcessing(true)
-    setMessage("Processing purchase...")
+    setMessage("Opening MetaMask...")
 
     try {
-      // Check if in demo mode (deployed site)
-      if (isDemoMode()) {
-        // Use simulated transaction
-        const result = simulatePurchase(
-          wallet.address,
-          selectedRecipe.creator,
-          selectedRecipe.price,
-          selectedRecipe.title
-        )
+      // Always try real MetaMask transaction first
+      setMessage("Confirm in MetaMask...")
+      
+      // Add pending transaction to history
+      const txRecord = addTransaction({
+        hash: "pending",
+        type: "buy",
+        status: "pending",
+        recipeTitle: selectedRecipe.title,
+        amount: selectedRecipe.price,
+        from: wallet.address,
+        to: selectedRecipe.creator,
+        timestamp: Date.now(),
+        description: `Purchasing ${selectedRecipe.title} recipe NFT`,
+      })
 
-        if (!result.success) {
-          setMessage(`❌ ${result.error}. Click your wallet to get more Demo ETH!`)
-          setIsProcessing(false)
-          return
-        }
-
-        // Add to transaction history
-        addTransaction({
-          hash: result.transaction!.hash,
-          type: "buy",
-          status: "completed",
-          recipeTitle: selectedRecipe.title,
-          amount: selectedRecipe.price,
-          from: wallet.address,
-          to: selectedRecipe.creator,
-          timestamp: Date.now(),
-          description: `Demo purchase: ${selectedRecipe.title}`,
-        })
-
-        setTxHash(result.transaction!.hash)
-        setMessage(`✅ Demo Purchase successful! TX: ${result.transaction!.hash.slice(0, 10)}...`)
-        
-        // Refresh balance
-        if (refreshDemoBalance) refreshDemoBalance()
-        
-        setTimeout(() => {
-          setSelectedRecipe(null)
-          setMessage("")
-          setTxHash("")
-          window.location.reload() // Refresh to update balance
-        }, 2000)
-      } else {
-        // Real transaction via MetaMask
-        setMessage("Opening MetaMask for payment...")
-        
-        // Add pending transaction to history
-        const txRecord = addTransaction({
-          hash: "pending",
-          type: "buy",
-          status: "pending",
-          recipeTitle: selectedRecipe.title,
-          amount: selectedRecipe.price,
-          from: wallet.address,
-          to: selectedRecipe.creator,
-          timestamp: Date.now(),
-          description: `Purchasing ${selectedRecipe.title} recipe NFT`,
-        })
-
+      try {
         // Send ETH via MetaMask
         const hash = await sendETH(selectedRecipe.creator, selectedRecipe.price)
         
@@ -200,30 +159,66 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
         })
 
         setTxHash(hash)
-        setMessage(`✅ Purchase successful! Transaction: ${hash.slice(0, 10)}...`)
+        setMessage(`✅ Purchase successful! TX: ${hash.slice(0, 10)}...`)
         
         setTimeout(() => {
           setSelectedRecipe(null)
           setMessage("")
           setTxHash("")
         }, 3000)
+      } catch (metaMaskError) {
+        // If MetaMask fails (user rejected, network issue, etc.), fall back to demo mode
+        const errorMsg = metaMaskError instanceof Error ? metaMaskError.message : "MetaMask error"
+        
+        // Check if user just rejected - don't do demo purchase
+        if (errorMsg.includes("rejected") || errorMsg.includes("denied") || errorMsg.includes("cancelled")) {
+          updateTransaction(txRecord.id, { status: "failed" })
+          setMessage(`❌ Transaction cancelled`)
+          setIsProcessing(false)
+          return
+        }
+
+        // Network error - offer demo mode
+        if (isDemoMode()) {
+          setMessage("MetaMask unavailable. Using Demo Mode...")
+          
+          const result = simulatePurchase(
+            wallet.address,
+            selectedRecipe.creator,
+            selectedRecipe.price,
+            selectedRecipe.title
+          )
+
+          if (!result.success) {
+            updateTransaction(txRecord.id, { status: "failed" })
+            setMessage(`❌ ${result.error}. Get more Demo ETH from wallet menu!`)
+            setIsProcessing(false)
+            return
+          }
+
+          updateTransaction(txRecord.id, {
+            hash: result.transaction!.hash,
+            status: "completed",
+          })
+
+          setTxHash(result.transaction!.hash)
+          setMessage(`✅ Demo Purchase successful!`)
+          
+          if (refreshDemoBalance) refreshDemoBalance()
+          
+          setTimeout(() => {
+            setSelectedRecipe(null)
+            setMessage("")
+            setTxHash("")
+            window.location.reload()
+          }, 2000)
+        } else {
+          updateTransaction(txRecord.id, { status: "failed" })
+          setMessage(`❌ ${errorMsg}`)
+        }
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Transaction failed"
-      
-      // Mark transaction as failed
-      addTransaction({
-        hash: "failed",
-        type: "buy",
-        status: "failed",
-        recipeTitle: selectedRecipe.title,
-        amount: selectedRecipe.price,
-        from: wallet.address,
-        to: selectedRecipe.creator,
-        timestamp: Date.now(),
-        description: `Failed: ${errorMsg}`,
-      })
-
       setMessage(`❌ ${errorMsg}`)
     } finally {
       setIsProcessing(false)
