@@ -1,4 +1,5 @@
-import { ethers } from "ethers";
+import { ethers } from "ethers"
+import { getSigner, executeWithRetry, waitForTransaction, getChainId } from "./provider"
 
 export interface MintResult {
   transactionHash: string
@@ -39,44 +40,74 @@ export async function mintRecipeNFT(ipfsHash: string, recipeData: {
 }): Promise<MintResult> {
   try {
     if (!window.ethereum) {
-      throw new Error("MetaMask not detected")
+      throw new Error("MetaMask not detected. Please install MetaMask extension.")
     }
 
-    // Get provider and signer
-    const provider = new ethers.BrowserProvider(window.ethereum)
-    const signer = await provider.getSigner()
+    // Get signer with retry logic
+    const signer = await executeWithRetry(async () => await getSigner(), 2, 500)
 
     // Create contract instance
     const contract = new ethers.Contract(RECIPE_NFT_CONTRACT, RECIPE_NFT_ABI, signer)
 
-    // Call mint function
-    const tx = await contract.mintRecipe(
-      ipfsHash,
-      recipeData.name,
-      recipeData.description,
-      recipeData.cuisine,
-      recipeData.prepTime,
-      recipeData.cookTime,
-      recipeData.difficulty,
-      recipeData.servings,
-      recipeData.royalty
+    console.log("[Contract] Minting recipe NFT:", { ipfsHash, name: recipeData.name })
+
+    // Call mint function with retry logic
+    const tx = await executeWithRetry(
+      async () =>
+        await contract.mintRecipe(
+          ipfsHash,
+          recipeData.name,
+          recipeData.description,
+          recipeData.cuisine,
+          recipeData.prepTime,
+          recipeData.cookTime,
+          recipeData.difficulty,
+          recipeData.servings,
+          recipeData.royalty,
+          {
+            gasLimit: 500000, // Set reasonable gas limit
+          }
+        ),
+      3, // Max 3 retries
+      2000 // 2 second delay
     )
 
-    // Wait for transaction confirmation
-    const receipt = await tx.wait()
+    console.log("[Contract] Transaction sent:", tx.hash)
 
-    console.log("[Contract] Minted recipe NFT:", { 
-      txHash: receipt?.hash, 
-      ipfsHash, 
-      blockNumber: receipt?.blockNumber 
+    // Wait for transaction confirmation with proper error handling
+    const receipt = await waitForTransaction(tx.hash, 1)
+
+    if (!receipt) {
+      throw new Error("Transaction receipt not received")
+    }
+
+    console.log("[Contract] Minted recipe NFT successfully:", {
+      txHash: receipt.hash,
+      ipfsHash,
+      blockNumber: receipt.blockNumber,
     })
 
     return {
-      transactionHash: receipt?.hash || tx.hash,
+      transactionHash: receipt.hash,
       ipfsHash,
     }
   } catch (error) {
-    throw new Error(`Failed to mint NFT: ${error instanceof Error ? error.message : "Unknown error"}`)
+    console.error("[Contract] Mint failed:", error)
+    
+    // Provide user-friendly error messages
+    if (error instanceof Error) {
+      if (error.message.includes("user rejected")) {
+        throw new Error("Transaction cancelled by user")
+      }
+      if (error.message.includes("insufficient funds")) {
+        throw new Error("Insufficient ETH for transaction. Please add funds to your wallet.")
+      }
+      if (error.message.includes("nonce")) {
+        throw new Error("Transaction nonce issue. Please reset your MetaMask account or try again.")
+      }
+      throw new Error(`Failed to mint NFT: ${error.message}`)
+    }
+    throw new Error("Failed to mint NFT: Unknown error")
   }
 }
 
@@ -86,13 +117,15 @@ export async function getRecipeNFTBalance(address: string): Promise<number> {
       throw new Error("MetaMask not detected")
     }
 
-    const provider = new ethers.BrowserProvider(window.ethereum)
+    const chainId = await getChainId()
+    const { getProvider } = await import("./provider")
+    const provider = await getProvider(chainId)
     const contract = new ethers.Contract(RECIPE_NFT_CONTRACT, RECIPE_NFT_ABI, provider)
 
-    const balance = await contract.balanceOf(address)
+    const balance = await executeWithRetry(async () => await contract.balanceOf(address), 2, 1000)
     return Number(balance)
   } catch (error) {
-    console.error("Failed to get balance:", error)
+    console.error("[Contract] Failed to get balance:", error)
     return 0
   }
 }
@@ -103,16 +136,29 @@ export async function listRecipeForSale(tokenId: number, price: string): Promise
       throw new Error("MetaMask not detected")
     }
 
-    const provider = new ethers.BrowserProvider(window.ethereum)
-    const signer = await provider.getSigner()
+    const signer = await getSigner()
     const contract = new ethers.Contract(RECIPE_MARKETPLACE_CONTRACT, MARKETPLACE_ABI, signer)
 
     const priceInWei = ethers.parseEther(price)
-    const tx = await contract.listRecipe(tokenId, priceInWei)
-    const receipt = await tx.wait()
+    
+    const tx = await executeWithRetry(
+      async () =>
+        await contract.listRecipe(tokenId, priceInWei, {
+          gasLimit: 300000,
+        }),
+      3,
+      2000
+    )
 
-    return receipt?.hash || tx.hash
+    const receipt = await waitForTransaction(tx.hash, 1)
+    
+    if (!receipt) {
+      throw new Error("Transaction receipt not received")
+    }
+
+    return receipt.hash
   } catch (error) {
+    console.error("[Contract] Failed to list recipe:", error)
     throw new Error(`Failed to list recipe: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
@@ -123,10 +169,13 @@ export async function getRecipeListing(tokenId: number) {
       throw new Error("MetaMask not detected")
     }
 
-    const provider = new ethers.BrowserProvider(window.ethereum)
+    const chainId = await getChainId()
+    const { getProvider } = await import("./provider")
+    const provider = await getProvider(chainId)
     const contract = new ethers.Contract(RECIPE_MARKETPLACE_CONTRACT, MARKETPLACE_ABI, provider)
 
-    const listing = await contract.getListing(tokenId)
+    const listing = await executeWithRetry(async () => await contract.getListing(tokenId), 2, 1000)
+    
     return {
       seller: listing[0],
       price: ethers.formatEther(listing[1]),
@@ -134,7 +183,7 @@ export async function getRecipeListing(tokenId: number) {
       listedAt: Number(listing[3]),
     }
   } catch (error) {
-    console.error("Failed to get listing:", error)
+    console.error("[Contract] Failed to get listing:", error)
     return null
   }
 }
