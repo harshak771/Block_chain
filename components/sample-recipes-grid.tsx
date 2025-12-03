@@ -129,92 +129,103 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
     if (!selectedRecipe || !wallet) return
 
     setIsProcessing(true)
-    setMessage("Opening MetaMask...")
 
     try {
-      // Always try real MetaMask transaction first
-      setMessage("Confirm in MetaMask...")
-      
-      // Add pending transaction to history
-      const txRecord = addTransaction({
-        hash: "pending",
-        type: "buy",
-        status: "pending",
-        recipeTitle: selectedRecipe.title,
-        amount: selectedRecipe.price,
-        from: wallet.address,
-        to: selectedRecipe.creator,
-        timestamp: Date.now(),
-        description: `Purchasing ${selectedRecipe.title} recipe NFT`,
-      })
-
-      try {
-        // Send ETH via MetaMask
-        const hash = await sendETH(selectedRecipe.creator, selectedRecipe.price)
+      // Check if in demo mode first (deployed site without real network)
+      if (isDemoMode()) {
+        setMessage("💰 Processing Demo Purchase...")
         
-        // Update transaction with actual hash and status
-        updateTransaction(txRecord.id, {
-          hash: hash,
+        const result = simulatePurchase(
+          wallet.address,
+          selectedRecipe.creator,
+          selectedRecipe.price,
+          selectedRecipe.title
+        )
+
+        if (!result.success) {
+          addTransaction({
+            hash: "failed",
+            type: "buy",
+            status: "failed",
+            recipeTitle: selectedRecipe.title,
+            amount: selectedRecipe.price,
+            from: wallet.address,
+            to: selectedRecipe.creator,
+            timestamp: Date.now(),
+            description: `Failed: ${result.error}`,
+          })
+          
+          setMessage(`❌ ${result.error}. Click your wallet to add more Demo ETH!`)
+          setIsProcessing(false)
+          return
+        }
+
+        // Add successful transaction to history
+        addTransaction({
+          hash: result.transaction!.hash,
+          type: "buy",
           status: "completed",
+          recipeTitle: selectedRecipe.title,
+          amount: selectedRecipe.price,
+          from: wallet.address,
+          to: selectedRecipe.creator,
+          timestamp: Date.now(),
+          description: `Demo purchase: ${selectedRecipe.title}`,
         })
 
-        setTxHash(hash)
-        setMessage(`✅ Purchase successful! TX: ${hash.slice(0, 10)}...`)
+        setTxHash(result.transaction!.hash)
+        setMessage(`✅ Purchase successful! You now own ${selectedRecipe.title}!`)
+        
+        // Refresh balance
+        if (refreshDemoBalance) refreshDemoBalance()
         
         setTimeout(() => {
           setSelectedRecipe(null)
           setMessage("")
           setTxHash("")
-        }, 3000)
-      } catch (metaMaskError) {
-        // If MetaMask fails (user rejected, network issue, etc.), fall back to demo mode
-        const errorMsg = metaMaskError instanceof Error ? metaMaskError.message : "MetaMask error"
+          window.location.reload() // Refresh to show updated balance
+        }, 2000)
+      } else {
+        // Real MetaMask transaction (localhost only)
+        setMessage("Opening MetaMask...")
         
-        // Check if user just rejected - don't do demo purchase
-        if (errorMsg.includes("rejected") || errorMsg.includes("denied") || errorMsg.includes("cancelled")) {
-          updateTransaction(txRecord.id, { status: "failed" })
-          setMessage(`❌ Transaction cancelled`)
-          setIsProcessing(false)
-          return
-        }
+        const txRecord = addTransaction({
+          hash: "pending",
+          type: "buy",
+          status: "pending",
+          recipeTitle: selectedRecipe.title,
+          amount: selectedRecipe.price,
+          from: wallet.address,
+          to: selectedRecipe.creator,
+          timestamp: Date.now(),
+          description: `Purchasing ${selectedRecipe.title} recipe NFT`,
+        })
 
-        // Network error - offer demo mode
-        if (isDemoMode()) {
-          setMessage("MetaMask unavailable. Using Demo Mode...")
+        try {
+          const hash = await sendETH(selectedRecipe.creator, selectedRecipe.price)
           
-          const result = simulatePurchase(
-            wallet.address,
-            selectedRecipe.creator,
-            selectedRecipe.price,
-            selectedRecipe.title
-          )
-
-          if (!result.success) {
-            updateTransaction(txRecord.id, { status: "failed" })
-            setMessage(`❌ ${result.error}. Get more Demo ETH from wallet menu!`)
-            setIsProcessing(false)
-            return
-          }
-
           updateTransaction(txRecord.id, {
-            hash: result.transaction!.hash,
+            hash: hash,
             status: "completed",
           })
 
-          setTxHash(result.transaction!.hash)
-          setMessage(`✅ Demo Purchase successful!`)
-          
-          if (refreshDemoBalance) refreshDemoBalance()
+          setTxHash(hash)
+          setMessage(`✅ Purchase successful! TX: ${hash.slice(0, 10)}...`)
           
           setTimeout(() => {
             setSelectedRecipe(null)
             setMessage("")
             setTxHash("")
-            window.location.reload()
-          }, 2000)
-        } else {
+          }, 3000)
+        } catch (metaMaskError) {
+          const errorMsg = metaMaskError instanceof Error ? metaMaskError.message : "MetaMask error"
           updateTransaction(txRecord.id, { status: "failed" })
-          setMessage(`❌ ${errorMsg}`)
+          
+          if (errorMsg.includes("rejected") || errorMsg.includes("denied") || errorMsg.includes("cancelled")) {
+            setMessage(`❌ Transaction cancelled`)
+          } else {
+            setMessage(`❌ ${errorMsg}`)
+          }
         }
       }
     } catch (error) {
@@ -251,11 +262,24 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Purchase Recipe NFT</DialogTitle>
-            <DialogDescription>Complete your purchase using MetaMask</DialogDescription>
+            <DialogDescription>
+              {isDemoMode() 
+                ? "🎮 Demo Mode - No real ETH required!" 
+                : "Complete your purchase using MetaMask"}
+            </DialogDescription>
           </DialogHeader>
 
           {selectedRecipe && (
             <div className="space-y-4">
+              {/* Demo Mode Banner */}
+              {isDemoMode() && (
+                <div className="bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                  <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">
+                    ✨ This is a simulated purchase using Demo ETH. No real money or gas fees!
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Recipe</p>
                 <p className="font-semibold">{selectedRecipe.title}</p>
@@ -271,25 +295,37 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Recipe Price</span>
-                  <span className="font-medium">{selectedRecipe.price} ETH</span>
+                  <span className="font-medium">{selectedRecipe.price} {isDemoMode() ? "Demo ETH" : "ETH"}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Est. Network Fee (Gas)</span>
-                  <span className="font-medium text-orange-600">~0.001 ETH</span>
-                </div>
-                <div className="border-t pt-2 flex justify-between">
-                  <span className="font-semibold">Total</span>
-                  <span className="text-xl font-bold text-primary">
-                    ~{(parseFloat(selectedRecipe.price) + 0.001).toFixed(3)} ETH
-                  </span>
-                </div>
+                {!isDemoMode() && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Est. Network Fee (Gas)</span>
+                      <span className="font-medium text-orange-600">~0.001 ETH</span>
+                    </div>
+                    <div className="border-t pt-2 flex justify-between">
+                      <span className="font-semibold">Total</span>
+                      <span className="text-xl font-bold text-primary">
+                        ~{(parseFloat(selectedRecipe.price) + 0.001).toFixed(3)} ETH
+                      </span>
+                    </div>
+                  </>
+                )}
+                {isDemoMode() && (
+                  <div className="border-t pt-2 flex justify-between">
+                    <span className="font-semibold">Total (No Gas Fee!)</span>
+                    <span className="text-xl font-bold text-purple-600">
+                      {selectedRecipe.price} Demo ETH
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Your Balance */}
               <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-                <span className="text-sm text-green-700 dark:text-green-300">Your Balance</span>
+                <span className="text-sm text-green-700 dark:text-green-300">Your {isDemoMode() ? "Demo" : ""} Balance</span>
                 <span className="font-bold text-green-700 dark:text-green-300">
-                  {wallet?.balance || "0"} ETH
+                  {wallet?.balance || "0"} {isDemoMode() ? "Demo ETH" : "ETH"}
                 </span>
               </div>
 
@@ -310,10 +346,15 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
               <Button
                 onClick={handleConfirmPurchase}
                 disabled={isProcessing}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className={`w-full ${isDemoMode() ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}`}
                 size="lg"
               >
-                {isProcessing ? "⏳ Processing..." : `🛒 Pay ${(parseFloat(selectedRecipe.price) + 0.001).toFixed(3)} ETH`}
+                {isProcessing 
+                  ? "⏳ Processing..." 
+                  : isDemoMode() 
+                    ? `🎮 Buy with ${selectedRecipe.price} Demo ETH` 
+                    : `🛒 Pay ${(parseFloat(selectedRecipe.price) + 0.001).toFixed(3)} ETH`
+                }
               </Button>
             </div>
           )}
