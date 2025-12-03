@@ -266,9 +266,31 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
                   {selectedRecipe.creator.slice(0, 6)}...{selectedRecipe.creator.slice(-4)}
                 </p>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Price</p>
-                <p className="text-2xl font-bold text-primary">{selectedRecipe.price} ETH</p>
+              
+              {/* Price Breakdown */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Recipe Price</span>
+                  <span className="font-medium">{selectedRecipe.price} ETH</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Est. Network Fee (Gas)</span>
+                  <span className="font-medium text-orange-600">~0.001 ETH</span>
+                </div>
+                <div className="border-t pt-2 flex justify-between">
+                  <span className="font-semibold">Total</span>
+                  <span className="text-xl font-bold text-primary">
+                    ~{(parseFloat(selectedRecipe.price) + 0.001).toFixed(3)} ETH
+                  </span>
+                </div>
+              </div>
+
+              {/* Your Balance */}
+              <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                <span className="text-sm text-green-700 dark:text-green-300">Your Balance</span>
+                <span className="font-bold text-green-700 dark:text-green-300">
+                  {wallet?.balance || "0"} ETH
+                </span>
               </div>
 
               {message && (
@@ -276,7 +298,9 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
                   className={`p-3 rounded-lg text-sm ${
                     txHash
                       ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200"
-                      : "bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200"
+                      : message.includes("❌")
+                        ? "bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200"
+                        : "bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200"
                   }`}
                 >
                   {message}
@@ -289,7 +313,7 @@ export function SampleRecipesGrid({ limit, onRecipeClick }: SampleRecipesGridPro
                 className="w-full bg-blue-600 hover:bg-blue-700"
                 size="lg"
               >
-                {isProcessing ? "⏳ Processing..." : "🛒 Confirm Purchase"}
+                {isProcessing ? "⏳ Processing..." : `🛒 Pay ${(parseFloat(selectedRecipe.price) + 0.001).toFixed(3)} ETH`}
               </Button>
             </div>
           )}
