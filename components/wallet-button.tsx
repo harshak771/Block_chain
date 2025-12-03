@@ -253,21 +253,50 @@ export function WalletButton() {
 
           {/* Network Switch & ETH Buttons */}
           <div className="px-2 py-2 space-y-2">
-            {/* Add Test ETH Button - Always visible */}
+            {/* Add Real Sepolia ETH Button - Always visible */}
             <Button
-              onClick={() => {
-                addFreeETH(1000)
-                setFundingMessage("✅ Added 1000 Test ETH!")
-                setTimeout(() => {
-                  setFundingMessage("")
-                  window.location.reload()
-                }, 1500)
+              onClick={async () => {
+                setFunding(true)
+                setFundingMessage("Sending 1 ETH to your wallet...")
+                try {
+                  const response = await fetch("/api/send-sepolia-eth", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ address: wallet.address }),
+                  })
+                  
+                  const data = await response.json()
+                  
+                  if (response.ok) {
+                    setFundingMessage("✅ Sent 1 Sepolia ETH! Refreshing...")
+                    setTimeout(() => window.location.reload(), 2000)
+                  } else {
+                    // Fallback to UI balance if real ETH fails
+                    addFreeETH(1000)
+                    setFundingMessage("✅ Added 1000 Test ETH to UI!")
+                    setTimeout(() => {
+                      setFundingMessage("")
+                      window.location.reload()
+                    }, 2000)
+                  }
+                } catch (error) {
+                  // Fallback to UI balance
+                  addFreeETH(1000)
+                  setFundingMessage("✅ Added 1000 Test ETH to UI!")
+                  setTimeout(() => {
+                    setFundingMessage("")
+                    window.location.reload()
+                  }, 2000)
+                } finally {
+                  setFunding(false)
+                }
               }}
+              disabled={funding}
               className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 gap-2"
               size="sm"
             >
               <Gift size={14} />
-              💰 Add 1000 Test ETH
+              {funding ? "Sending..." : "💰 Get 1 Sepolia ETH"}
             </Button>
 
             {/* For deployed app - use Sepolia */}
