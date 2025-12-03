@@ -31,9 +31,9 @@ export function MarketplaceBrowser() {
 
     const matchesPrice =
       priceFilter === "all" ||
-      (priceFilter === "budget" && price <= 0.05) ||
-      (priceFilter === "mid" && price > 0.05 && price <= 0.1) ||
-      (priceFilter === "premium" && price > 0.1)
+      (priceFilter === "budget" && price <= 0.001) ||
+      (priceFilter === "mid" && price > 0.001 && price <= 0.002) ||
+      (priceFilter === "premium" && price > 0.002)
 
     return matchesSearch && matchesPrice && listing.active
   })
