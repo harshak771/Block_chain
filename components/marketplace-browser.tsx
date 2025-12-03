@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useMarketplace } from "@/hooks/useMarketplace"
 import { useWallet } from "@/hooks/useWallet"
 import { sendETH } from "@/lib/web3"
+import { simulatePurchase, isDemoMode } from "@/lib/demo-wallet"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { RecipeCard } from "./recipe-card"
@@ -16,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export function MarketplaceBrowser() {
   const { listings, loading, error, purchaseRecipe } = useMarketplace()
-  const { isConnected, wallet } = useWallet()
+  const { isConnected, wallet, refreshDemoBalance } = useWallet()
   const [searchQuery, setSearchQuery] = useState("")
   const [priceFilter, setPriceFilter] = useState("all")
   const [selectedListing, setSelectedListing] = useState<string | null>(null)
@@ -47,28 +48,58 @@ export function MarketplaceBrowser() {
     if (!listing) return
 
     setIsProcessing(true)
-    setTxMessage("Processing payment with MetaMask...")
+    setTxMessage("Processing payment...")
     setTxHash("")
 
     try {
-      // Send ETH to the seller
-      const txHash = await sendETH(listing.recipe.creator, listing.price)
-      setTxHash(txHash)
-      setTxMessage(`✅ Purchase successful! Transaction: ${txHash}`)
+      // Check if in demo mode (deployed site)
+      if (isDemoMode()) {
+        // Use simulated transaction
+        const result = simulatePurchase(
+          wallet.address,
+          listing.recipe.creator,
+          listing.price,
+          listing.recipe.title
+        )
 
-      // Also try to update contract state
-      try {
-        await purchaseRecipe(listingId, wallet.address, listing.price)
-      } catch (contractErr) {
-        console.log("Contract update note:", contractErr)
-        // Don't fail the transaction if contract update fails
+        if (!result.success) {
+          setTxMessage(`❌ ${result.error}. Click your wallet to get more Demo ETH!`)
+          setIsProcessing(false)
+          return
+        }
+
+        setTxHash(result.transaction!.hash)
+        setTxMessage(`✅ Demo Purchase successful! TX: ${result.transaction!.hash.slice(0, 10)}...`)
+        
+        // Refresh balance
+        if (refreshDemoBalance) refreshDemoBalance()
+        
+        setTimeout(() => {
+          setSelectedListing(null)
+          setTxMessage("")
+          setTxHash("")
+          window.location.reload() // Refresh to update balance
+        }, 2000)
+      } else {
+        // Real transaction via MetaMask
+        setTxMessage("Confirm in MetaMask...")
+        const txHash = await sendETH(listing.recipe.creator, listing.price)
+        setTxHash(txHash)
+        setTxMessage(`✅ Purchase successful! Transaction: ${txHash}`)
+
+        // Also try to update contract state
+        try {
+          await purchaseRecipe(listingId, wallet.address, listing.price)
+        } catch (contractErr) {
+          console.log("Contract update note:", contractErr)
+        }
+
+        setTimeout(() => {
+          setSelectedListing(null)
+          setTxMessage("")
+          setTxHash("")
+        }, 3000)
       }
-
-      setTimeout(() => {
-        setSelectedListing(null)
-        setTxMessage("")
-        setTxHash("")
-      }, 3000)
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Transaction failed"
       setTxMessage(`❌ ${errorMsg}`)

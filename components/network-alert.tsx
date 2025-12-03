@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, RefreshCw } from "lucide-react"
+import { AlertTriangle, RefreshCw, Gift } from "lucide-react"
 import { switchToSepolia, isLocalEnvironment, switchToHardhat } from "@/lib/web3"
+import { isDemoMode, getDemoBalance } from "@/lib/demo-wallet"
 
 export function NetworkAlert() {
   const [chainId, setChainId] = useState<number | null>(null)
-  const [isWrongNetwork, setIsWrongNetwork] = useState(false)
+  const [showDemoInfo, setShowDemoInfo] = useState(false)
   const [switching, setSwitching] = useState(false)
   const [error, setError] = useState("")
 
@@ -23,15 +24,9 @@ export function NetworkAlert() {
         const currentChainId = parseInt(chainIdHex, 16)
         setChainId(currentChainId)
 
-        // Check if on wrong network
-        const isLocal = isLocalEnvironment()
-        if (isLocal) {
-          // Local: should be on Hardhat (31337)
-          setIsWrongNetwork(currentChainId !== 31337)
-        } else {
-          // Deployed: should be on Sepolia (11155111) or any mainnet (1)
-          // Hardhat (31337) won't work on deployed site
-          setIsWrongNetwork(currentChainId === 31337)
+        // Show demo info on deployed sites
+        if (isDemoMode()) {
+          setShowDemoInfo(true)
         }
       } catch (err) {
         console.error("Error checking network:", err)
@@ -48,73 +43,26 @@ export function NetworkAlert() {
     }
   }, [])
 
-  const handleSwitchNetwork = async () => {
-    setSwitching(true)
-    setError("")
-    try {
-      const isLocal = isLocalEnvironment()
-      if (isLocal) {
-        await switchToHardhat()
-      } else {
-        await switchToSepolia()
-      }
-      // Page will reload on chain change
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to switch network")
-      setSwitching(false)
-    }
+  // Show demo mode banner on deployed sites
+  if (isDemoMode() && showDemoInfo) {
+    const demoBalance = getDemoBalance()
+    return (
+      <Alert className="mb-4 border-purple-500 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
+        <Gift className="h-4 w-4 text-purple-600" />
+        <AlertTitle className="text-purple-800 dark:text-purple-200">🎮 Demo Mode Active</AlertTitle>
+        <AlertDescription className="mt-2 text-purple-700 dark:text-purple-300">
+          <p className="mb-2">
+            You have <strong>{demoBalance.toFixed(2)} Demo ETH</strong> to test the marketplace!
+            Connect your wallet and click it to get more free Demo ETH anytime.
+          </p>
+          <p className="text-sm opacity-80">
+            Demo transactions are simulated and don&apos;t require real ETH or gas fees.
+          </p>
+        </AlertDescription>
+      </Alert>
+    )
   }
 
-  // Don't show if no ethereum or network is correct
-  if (!isWrongNetwork || chainId === null) {
-    return null
-  }
-
-  const isLocal = isLocalEnvironment()
-  const targetNetwork = isLocal ? "Hardhat Local" : "Sepolia Testnet"
-  const currentNetwork = chainId === 31337 ? "Hardhat Local" : 
-                         chainId === 11155111 ? "Sepolia" :
-                         chainId === 1 ? "Ethereum Mainnet" : `Chain ${chainId}`
-
-  return (
-    <Alert variant="destructive" className="mb-4 border-red-500 bg-red-50 dark:bg-red-950">
-      <AlertTriangle className="h-4 w-4" />
-      <AlertTitle>Wrong Network Detected</AlertTitle>
-      <AlertDescription className="mt-2">
-        <p className="mb-3">
-          You are connected to <strong>{currentNetwork}</strong>, but this app 
-          {isLocal ? " requires " : " works best on "}
-          <strong>{targetNetwork}</strong>.
-          {!isLocal && chainId === 31337 && (
-            <span className="block mt-1 text-sm">
-              Hardhat Local only works when running the app locally with a Hardhat node.
-            </span>
-          )}
-        </p>
-        <div className="flex flex-wrap gap-2 items-center">
-          <Button 
-            onClick={handleSwitchNetwork} 
-            disabled={switching}
-            size="sm"
-            variant="outline"
-            className="bg-white dark:bg-gray-800"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${switching ? 'animate-spin' : ''}`} />
-            {switching ? "Switching..." : `Switch to ${targetNetwork}`}
-          </Button>
-          {!isLocal && (
-            <a 
-              href="https://sepoliafaucet.com" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm underline"
-            >
-              Get free Sepolia ETH →
-            </a>
-          )}
-        </div>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      </AlertDescription>
-    </Alert>
-  )
+  // Don't show anything for local development
+  return null
 }

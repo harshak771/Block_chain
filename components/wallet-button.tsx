@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
-import { Copy, LogOut, Wallet, Zap, RefreshCw } from "lucide-react"
+import { Copy, LogOut, Wallet, Zap, RefreshCw, Gift } from "lucide-react"
 import { useState } from "react"
 
 const NETWORK_NAMES: Record<number, string> = {
@@ -27,7 +27,7 @@ const NETWORK_NAMES: Record<number, string> = {
 }
 
 export function WalletButton() {
-  const { wallet, isLoading, error, connect, disconnect, isConnected } = useWallet()
+  const { wallet, isLoading, error, connect, disconnect, isConnected, isDemoMode, addFreeETH } = useWallet()
   const { addTransaction, updateTransaction } = useTransactionHistory()
   const [copied, setCopied] = useState(false)
   const [funding, setFunding] = useState(false)
@@ -253,8 +253,28 @@ export function WalletButton() {
 
           {/* Network Switch & ETH Buttons */}
           <div className="px-2 py-2 space-y-2">
+            {/* Demo mode - free ETH button */}
+            {isDemoMode && (
+              <>
+                <div className="bg-purple-100 dark:bg-purple-900 p-2 rounded text-xs text-center mb-2">
+                  🎮 Demo Mode Active - Free Test ETH!
+                </div>
+                <Button
+                  onClick={() => {
+                    addFreeETH(1000)
+                    setFundingMessage("✅ Added 1000 Demo ETH!")
+                    setTimeout(() => setFundingMessage(""), 2000)
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 gap-2"
+                  size="sm"
+                >
+                  <Gift size={14} />
+                  🎁 Get 1000 Free Demo ETH
+                </Button>
+              </>
+            )}
             {/* For deployed app - use Sepolia */}
-            {!isLocalEnvironment() && wallet.chainId !== 11155111 && (
+            {!isLocalEnvironment() && !isDemoMode && wallet.chainId !== 11155111 && (
               <Button
                 onClick={handleSwitchToSepolia}
                 disabled={funding}
@@ -288,24 +308,6 @@ export function WalletButton() {
                 <Zap size={14} />
                 {funding ? "Adding ETH..." : "⚡ Mint 100,000 ETH"}
               </Button>
-            )}
-            {/* Sepolia faucet link for deployed */}
-            {!isLocalEnvironment() && (
-              <a
-                href="https://sepoliafaucet.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block"
-              >
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  size="sm"
-                >
-                  <Zap size={14} />
-                  🚰 Get Free Sepolia ETH
-                </Button>
-              </a>
             )}
             {wallet.chainId === 31337 && isLocalEnvironment() && (
               <Button
