@@ -38,17 +38,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       try {
         const connected = await getConnectedWallet()
         if (connected) {
-          // In demo mode, override balance with demo balance
-          if (isDemoMode()) {
-            const demoBal = getDemoBalance()
-            setDemoBalance(demoBal)
-            setWallet({
-              ...connected,
-              balance: demoBal.toFixed(4),
-            })
-          } else {
-            setWallet(connected)
+          // Always give user test balance
+          let demoBal = getDemoBalance()
+          
+          // If no balance, give them 100 ETH to start
+          if (demoBal === 0 || demoBal < 1) {
+            demoBal = 100
+            localStorage.setItem("demo_wallet_balance", "100")
           }
+          
+          setDemoBalance(demoBal)
+          setWallet({
+            ...connected,
+            balance: demoBal.toFixed(4),
+          })
         }
       } catch (err) {
         console.error("Error checking wallet:", err)
@@ -82,17 +85,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const walletInfo = await connectWallet()
       
-      // In demo mode, use demo balance
-      if (isDemoMode()) {
-        const demoBal = getDemoBalance()
-        setDemoBalance(demoBal)
-        setWallet({
-          ...walletInfo,
-          balance: demoBal.toFixed(4),
-        })
-      } else {
-        setWallet(walletInfo)
+      // Always give user test balance
+      let demoBal = getDemoBalance()
+      
+      // If no balance or too low, give them 100 ETH to start
+      if (demoBal === 0 || demoBal < 1) {
+        demoBal = 100
+        localStorage.setItem("demo_wallet_balance", "100")
       }
+      
+      setDemoBalance(demoBal)
+      setWallet({
+        ...walletInfo,
+        balance: demoBal.toFixed(4),
+      })
       
       localStorage.setItem("walletConnected", "true")
     } catch (err) {
