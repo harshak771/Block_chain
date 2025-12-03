@@ -108,15 +108,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setWallet(null)
   }
 
-  // Add demo ETH (only works in demo mode)
+  // Add demo ETH - works everywhere now
   const addFreeETH = (amount: number = 1000) => {
-    if (isDemoMode() && wallet) {
-      const newBalance = addDemoETH(amount)
+    if (wallet) {
+      const currentBalance = parseFloat(wallet.balance) || 0
+      const newBalance = currentBalance + amount
       setDemoBalance(newBalance)
       setWallet({
         ...wallet,
         balance: newBalance.toFixed(4),
       })
+      // Also update localStorage
+      addDemoETH(amount)
     }
   }
 
